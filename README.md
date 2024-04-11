@@ -25,7 +25,7 @@ $ dfx start --background
 If you want to start working on your project right away, you might want to try the following commands:
 
 ```bash
-$ cd icp_rust_boilerplate/
+$ cd reviewz_rust_backend/
 $ dfx help
 $ dfx canister --help
 ```

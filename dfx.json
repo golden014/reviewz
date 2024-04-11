@@ -1,10 +1,10 @@
 {
   "version": 1,
   "canisters": {
-    "icp_rust_boilerplate_backend": {
+    "reviewz_rust_backend": {
       "type": "rust",
-      "package": "icp_rust_boilerplate_backend",
-      "candid": "src/icp_rust_boilerplate_backend/icp_rust_boilerplate_backend.did"
+      "package": "reviewz_rust_backend",
+      "candid": "src/reviewz_rust_backend/reviewz_rust_backend.did"
     }
   },
   "output_env_file": ".env"
