@@ -1,21 +1,12 @@
-type Error = variant { NotFound : record { msg : text } };
-type Message = record {
-  id : nat64;
-  title : text;
-  updated_at : opt nat64;
-  body : text;
-  created_at : nat64;
-  attachment_url : text;
+type CreateUserPayload = record { username : text; role : text; email : text };
+type User = record {
+  username : text;
+  role : text;
+  user_id : nat64;
+  email : text;
+  joined_at : nat64;
 };
-type MessagePayload = record {
-  title : text;
-  body : text;
-  attachment_url : text;
-};
-type Result = variant { Ok : Message; Err : Error };
 service : {
-  add_message : (MessagePayload) -> (opt Message);
-  delete_message : (nat64) -> (Result);
-  get_message : (nat64) -> (Result) query;
-  update_message : (nat64, MessagePayload) -> (Result);
+  create_user : (CreateUserPayload) -> (opt User);
+  view_all_user : () -> (opt vec User) query;
 }

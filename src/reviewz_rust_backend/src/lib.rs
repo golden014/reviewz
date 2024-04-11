@@ -22,17 +22,16 @@ type IdCell = Cell<u64, Memory>; //cell responsible for holding the current ID o
 
 //this attribute is telling the Rust compiler to automatically implement the CandidType trait from the candid crate, as well as the Clone, Serialize, Deserialize, and Default traits for the struct or enum that this attribute is applied to. This is a common pattern used in Rust when working with serialization and deserialization libraries to provide automatic implementation of necessary traits for working with those libraries.
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
-struct Message {
-    id: u64,
-    title: String,
-    body: String,
-    attachment_url: String,
-    created_at: u64,
-    updated_at: Option<u64>,
+struct User {
+    user_id: u64,
+    email: String,
+    username: String,
+    role: String,
+    joined_at: u64
 }
 
-// a trait that must be implemented for a struct that is stored in a stable struct
-impl Storable for Message {
+// a trait that must be implemented for a struct that is stored in a stable struct - User
+impl Storable for User {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }
@@ -42,122 +41,170 @@ impl Storable for Message {
     }
 }
 
-// another trait that must be implemented for a struct that is stored in a stable struct
-// A trait indicating that a `Storable` element is bounded in size.
-impl BoundedStorable for Message {
+// A trait indicating that a `Storable` element is bounded in size - User
+impl BoundedStorable for User {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
 //thread-local variables that will hold our canister's state. Thread-local variables are variables that are local to the current thread (sequence of instructions). They are useful when you need to share data between multiple threads.
-
-//RefCell to manage our canister's state, allowing us to access it from anywhere in our code. Tapi compiler gabisa guarantee our code adheres to the borrowing rules
 thread_local! {
     //This thread-local variable holds our canister's virtual memory, enabling us to access the memory manager from any part of our code.
     static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> = RefCell::new(
         MemoryManager::init(DefaultMemoryImpl::default())
     );
 
-    //It holds our canister's ID counter, allowing us to access it from anywhere in our code.
-    static ID_COUNTER: RefCell<IdCell> = RefCell::new(
+    //It holds our canister's user ID counter, allowing us to access it from anywhere in our code.
+    static USER_ID_COUNTER: RefCell<IdCell> = RefCell::new(
         IdCell::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0))), 0)
-            .expect("Cannot create a counter")
+            .expect("Cannot create a user ID counter")
     );
 
-    //This variable holds our canister's storage, enabling access from anywhere in our code.
-    static STORAGE: RefCell<StableBTreeMap<u64, Message, Memory>> =
+    //for product ID 
+    static PRODUCT_ID_COUNTER: RefCell<IdCell> = RefCell::new(
+        //use different memory region by specifying different memory ID
+        IdCell::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1))), 0)
+            .expect("Cannot create a product ID counter")
+    );
+
+    //for review ID
+    static REVIEW_ID_COUNTER: RefCell<IdCell> = RefCell::new(
+        IdCell::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(2))), 0)
+            .expect("Cannot create a review ID counter")
+    );
+
+    //This variable holds our canister's user storage, enabling access from anywhere in our code.
+    static USER_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
         RefCell::new(StableBTreeMap::init(
-            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(1)))
+            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
     ));
+
+    //lanjut after declaring the structs
+    // static PRODUCT_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
+    //     RefCell::new(StableBTreeMap::init(
+    //         MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
+    // ));
+
+    // static REVIEW_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
+    //     RefCell::new(StableBTreeMap::init(
+    //         MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
+    // ));
+    
 }
 
-//The MessagePayload struct defines the structure for the data that will be used when creating or updating messages within our canister.
+//The payloads struct defines the structure for the data that will be used when creating or updating something within our canister.
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
-struct MessagePayload {
-    title: String,
-    body: String,
-    attachment_url: String,
+struct CreateUserPayload {
+    email: String,
+    username: String,
+    role: String
 }
 
-//enum utk error
+//enum for errors
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
 }
 
-//retrieves a message from our canister's storage.
-#[ic_cdk::query]
-fn get_message(id: u64) -> Result<Message, Error> {
-    match _get_message(&id) {
-        Some(message) => Ok(message),
-        None => Err(Error::NotFound {
-            msg: format!("a message with id={} not found", id),
-        }),
-    }
-}
+// //retrieves a message from our canister's storage.
+// #[ic_cdk::query]
+// fn get_message(id: u64) -> Result<Message, Error> {
+//     match _get_message(&id) {
+//         Some(message) => Ok(message),
+//         None => Err(Error::NotFound {
+//             msg: format!("a message with id={} not found", id),
+//         }),
+//     }
+// }
 
-//helper utk dipake di get_message
-fn _get_message(id: &u64) -> Option<Message> {
-    STORAGE.with(|s| s.borrow().get(id))
-}
+// //helper utk dipake di get_message
+// fn _get_message(id: &u64) -> Option<Message> {
+//     STORAGE.with(|s| s.borrow().get(id))
+// }
 
 //takes a message of type MessagePayload as input and returns an Option<Message>. It generates a unique id for the message, creates a new Message struct, and adds it to the canister's storage
+// #[ic_cdk::update]
+// fn add_message(message: MessagePayload) -> Option<Message> {
+//     let id = ID_COUNTER
+//         .with(|counter| {
+//             let current_value = *counter.borrow().get();
+//             counter.borrow_mut().set(current_value + 1)
+//         })
+//         .expect("cannot increment id counter");
+//     let message = Message {
+//         id,
+//         title: message.title,
+//         body: message.body,
+//         attachment_url: message.attachment_url,
+//         created_at: time(),
+//         updated_at: None,
+//     };
+//     do_insert(&message);
+//     Some(message)
+// }
+
+#[ic_cdk::query]
+fn view_all_user() -> Option<Vec<User>> {
+    USER_STORAGE.with(|s| {
+        Some(s.borrow().iter().map(|(_user_id, user_data)| (user_data.clone())).collect())
+    })
+}
+
 #[ic_cdk::update]
-fn add_message(message: MessagePayload) -> Option<Message> {
-    let id = ID_COUNTER
+fn create_user(data: CreateUserPayload) -> Option<User> {
+    let id = USER_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
             counter.borrow_mut().set(current_value + 1)
         })
         .expect("cannot increment id counter");
-    let message = Message {
-        id,
-        title: message.title,
-        body: message.body,
-        attachment_url: message.attachment_url,
-        created_at: time(),
-        updated_at: None,
+    let new_user = User {
+        user_id: id,
+        email: data.email,
+        username: data.username,
+        role: data.role,
+        joined_at: time(),
     };
-    do_insert(&message);
-    Some(message)
+    do_insert_user(&new_user);
+    Some(new_user)
 }
 
-// helper method to perform insert.
-fn do_insert(message: &Message) {
-    STORAGE.with(|service| service.borrow_mut().insert(message.id, message.clone()));
+// helper method to perform insert, insert the new user data
+fn do_insert_user(data: &User) {
+    USER_STORAGE.with(|service| service.borrow_mut().insert(data.user_id, data.clone()));
 }
 
-#[ic_cdk::update]
-fn update_message(id: u64, payload: MessagePayload) -> Result<Message, Error> {
-    match STORAGE.with(|service| service.borrow().get(&id)) {
-        Some(mut message) => {
-            message.attachment_url = payload.attachment_url;
-            message.body = payload.body;
-            message.title = payload.title;
-            message.updated_at = Some(time());
-            do_insert(&message);
-            Ok(message)
-        }
-        None => Err(Error::NotFound {
-            msg: format!(
-                "couldn't update a message with id={}. message not found",
-                id
-            ),
-        }),
-    }
-}
+// #[ic_cdk::update]
+// fn update_message(id: u64, payload: MessagePayload) -> Result<Message, Error> {
+//     match STORAGE.with(|service| service.borrow().get(&id)) {
+//         Some(mut message) => {
+//             message.attachment_url = payload.attachment_url;
+//             message.body = payload.body;
+//             message.title = payload.title;
+//             message.updated_at = Some(time());
+//             do_insert(&message);
+//             Ok(message)
+//         }
+//         None => Err(Error::NotFound {
+//             msg: format!(
+//                 "couldn't update a message with id={}. message not found",
+//                 id
+//             ),
+//         }),
+//     }
+// }
 
-#[ic_cdk::update]
-fn delete_message(id: u64) -> Result<Message, Error> {
-    match STORAGE.with(|service| service.borrow_mut().remove(&id)) {
-        Some(message) => Ok(message),
-        None => Err(Error::NotFound {
-            msg: format!(
-                "couldn't delete a message with id={}. message not found.",
-                id
-            ),
-        }),
-    }
-}
+// #[ic_cdk::update]
+// fn delete_message(id: u64) -> Result<Message, Error> {
+//     match STORAGE.with(|service| service.borrow_mut().remove(&id)) {
+//         Some(message) => Ok(message),
+//         None => Err(Error::NotFound {
+//             msg: format!(
+//                 "couldn't delete a message with id={}. message not found.",
+//                 id
+//             ),
+//         }),
+//     }
+// }
 
 // need this to generate candid
 ic_cdk::export_candid!();
