@@ -1,9 +1,23 @@
+type AddProductPayload = record {
+  product_link : text;
+  product_name : text;
+  owner_user_id : nat64;
+  product_description : text;
+};
 type CreateUserPayload = record { username : text; role : text; email : text };
 type Error = variant {
   NotFound : record { msg : text };
-  InvalidUserData : record { msg : text };
+  InvalidPayloadData : record { msg : text };
 };
-type Result = variant { Ok : opt User; Err : Error };
+type ProductReviewz = record {
+  product_id : nat64;
+  product_link : text;
+  product_name : text;
+  owner_user_id : nat64;
+  product_description : text;
+};
+type Result = variant { Ok : opt ProductReviewz; Err : Error };
+type Result_1 = variant { Ok : opt User; Err : Error };
 type User = record {
   username : text;
   role : text;
@@ -12,6 +26,7 @@ type User = record {
   joined_at : nat64;
 };
 service : {
-  create_user : (CreateUserPayload) -> (Result);
+  add_product : (AddProductPayload) -> (Result);
+  create_user : (CreateUserPayload) -> (Result_1);
   view_all_user : () -> (opt vec User) query;
 }

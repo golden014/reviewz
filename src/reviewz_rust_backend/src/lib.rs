@@ -31,6 +31,15 @@ struct User {
     joined_at: u64
 }
 
+#[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
+struct ProductReviewz {
+    product_id: u64,
+    product_name: String,
+    product_description: String,
+    product_link: String,
+    owner_user_id: u64
+}
+
 // a trait that must be implemented for a struct that is stored in a stable struct - User
 impl Storable for User {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
@@ -100,11 +109,19 @@ struct CreateUserPayload {
     role: String
 }
 
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct AddProductPayload {
+    product_name: String,
+    product_description: String,
+    product_link: String,
+    owner_user_id: u64
+}
+
 //enum for errors
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
-    InvalidUserData {msg: String}
+    InvalidPayloadData {msg: String}
 }
 
 // //retrieves a message from our canister's storage.
@@ -148,6 +165,10 @@ fn role_validation(data: &String) -> bool {
     data == "Customer" || data == "StoreOwner"
 }
 
+fn is_store_owner_validation(data: &String) -> bool {
+    data == "StoreOwner"
+}
+
 //takes a message of type MessagePayload as input and returns an Option<Message>. It generates a unique id for the message, creates a new Message struct, and adds it to the canister's storage
 // #[ic_cdk::update]
 // fn add_message(message: MessagePayload) -> Option<Message> {
@@ -182,7 +203,7 @@ fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
     let user_data_valid = create_user_validation(&data);
 
     if user_data_valid == false {
-        return Result::Err(Error::InvalidUserData { msg: "Invalid data, make sure the email is in valid format, email and username must be unique".to_string() })
+        return Result::Err(Error::InvalidPayloadData { msg: "Invalid data, make sure the email is in valid format, email and username must be unique".to_string() })
     }
 
     let id = USER_ID_COUNTER
@@ -202,6 +223,35 @@ fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
     return Result::Ok(Some(new_user)) 
 }
 
+
+
+#[ic_cdk::update]
+fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error> {
+    let add_product_data_valid = add_product_validation(&data);
+
+    if add_product_data_valid == false {
+        return Result::Err(Error::InvalidPayloadData{ msg: "Invalid data, user must be valid and must be a store owner, and link must be in a valid format".to_string() })
+    } 
+
+    
+    let id = PRODUCT_ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("cannot increment id counter");
+    let new_product = ProductReviewz {
+        product_id: id,
+        product_name: data.product_name,
+        product_description: data.product_description,
+        product_link: data.product_link,
+        owner_user_id: data.owner_user_id,
+    };
+
+    return Result::Ok(Some(new_product)) 
+}
+
+
 fn create_user_validation(data: &CreateUserPayload) -> bool {
     //email format validation using regex
     let email_format = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
@@ -218,9 +268,33 @@ fn create_user_validation(data: &CreateUserPayload) -> bool {
     return email_format_valid && role_valid && email_unique && username_unique;
 }
 
+
+//add product validation
+fn add_product_validation(data: &AddProductPayload) -> bool {
+    //get the user
+    let user = _get_user_by_id(&data.owner_user_id);
+
+    //if user exist, proceed to check is store owner validation, else return false
+    let user_role_valid = match user {
+        Some(ref _user) => is_store_owner_validation(&user.unwrap().role),
+        None => false
+    };
+
+    let valid_link_format = Regex::new(r"^https?://(?:www\.)?[a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:/[\w\-./?%&=]*)?$").unwrap();
+    //check if the link match the regex
+    let link_valid = valid_link_format.is_match(&data.product_link);
+    
+    return user_role_valid && link_valid;
+    
+}
+
 // helper method to perform insert, insert the new user data
 fn do_insert_user(data: &User) {
     USER_STORAGE.with(|service| service.borrow_mut().insert(data.user_id, data.clone()));
+}
+
+fn _get_user_by_id(user_id: &u64) -> Option<User> {
+    USER_STORAGE.with(|s| s.borrow().get(user_id))
 }
 
 // #[ic_cdk::update]
