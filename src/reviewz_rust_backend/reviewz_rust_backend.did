@@ -1,4 +1,9 @@
 type CreateUserPayload = record { username : text; role : text; email : text };
+type Error = variant {
+  NotFound : record { msg : text };
+  InvalidUserData : record { msg : text };
+};
+type Result = variant { Ok : opt User; Err : Error };
 type User = record {
   username : text;
   role : text;
@@ -7,6 +12,6 @@ type User = record {
   joined_at : nat64;
 };
 service : {
-  create_user : (CreateUserPayload) -> (opt User);
+  create_user : (CreateUserPayload) -> (Result);
   view_all_user : () -> (opt vec User) query;
 }

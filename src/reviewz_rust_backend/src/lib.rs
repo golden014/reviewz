@@ -5,6 +5,7 @@ use ic_cdk::api::time; //core crate for rust Canister Development kit, provide c
 //dengan Internet Computer Blockchain system API
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory}; //provide data structures
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
+use regex::Regex;
 use std::{borrow::Cow, cell::RefCell};
 
 // #[ic_cdk::query]
@@ -103,6 +104,7 @@ struct CreateUserPayload {
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
     NotFound { msg: String },
+    InvalidUserData {msg: String}
 }
 
 // //retrieves a message from our canister's storage.
@@ -120,6 +122,26 @@ enum Error {
 // fn _get_message(id: &u64) -> Option<Message> {
 //     STORAGE.with(|s| s.borrow().get(id))
 // }
+#[derive(candid::CandidType, Deserialize, Serialize)]
+enum UniqueAttribue{
+    Email,
+    Username
+}
+
+//to check if the specified attribute is unique or not
+fn attribute_unique_validation(data: &String, attribute: UniqueAttribue) -> bool {
+    let is_unique: bool = !USER_STORAGE.with(|s| {
+        s.borrow().iter().any(|(_, user_data)| {
+            match attribute {
+                //will check different attribute based on the UniqueAttribute passed
+                UniqueAttribue::Email => user_data.email == *data,
+                UniqueAttribue::Username => user_data.username == *data
+            }
+        })
+    });
+
+    is_unique
+}
 
 //takes a message of type MessagePayload as input and returns an Option<Message>. It generates a unique id for the message, creates a new Message struct, and adds it to the canister's storage
 // #[ic_cdk::update]
@@ -145,12 +167,19 @@ enum Error {
 #[ic_cdk::query]
 fn view_all_user() -> Option<Vec<User>> {
     USER_STORAGE.with(|s| {
+        //iterating through the USER_STORAGE's key-value pair, take all the value (user-data) and return as a vector
         Some(s.borrow().iter().map(|(_user_id, user_data)| (user_data.clone())).collect())
     })
 }
 
 #[ic_cdk::update]
-fn create_user(data: CreateUserPayload) -> Option<User> {
+fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
+    let user_data_valid = create_user_validation(&data);
+
+    if user_data_valid == false {
+        return Result::Err(Error::InvalidUserData { msg: "Invalid data, make sure the email is in valid format, email and username must be unique".to_string() })
+    }
+
     let id = USER_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -165,7 +194,20 @@ fn create_user(data: CreateUserPayload) -> Option<User> {
         joined_at: time(),
     };
     do_insert_user(&new_user);
-    Some(new_user)
+    return Result::Ok(Some(new_user)) 
+}
+
+fn create_user_validation(data: &CreateUserPayload) -> bool {
+    //email format validation using regex
+    let email_format = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+
+    //check if the email matches the regex
+    let email_format_valid = email_format.is_match(&data.email);
+    //check if email and username is unique
+    let email_unique = attribute_unique_validation(&data.email, UniqueAttribue::Email); 
+    let username_unique = attribute_unique_validation(&data.username, UniqueAttribue::Username);
+
+    return email_format_valid && email_unique && username_unique;
 }
 
 // helper method to perform insert, insert the new user data
