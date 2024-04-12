@@ -143,6 +143,11 @@ fn attribute_unique_validation(data: &String, attribute: UniqueAttribue) -> bool
     is_unique
 }
 
+//to validate user's role
+fn role_validation(data: &String) -> bool {
+    data == "Customer" || data == "StoreOwner"
+}
+
 //takes a message of type MessagePayload as input and returns an Option<Message>. It generates a unique id for the message, creates a new Message struct, and adds it to the canister's storage
 // #[ic_cdk::update]
 // fn add_message(message: MessagePayload) -> Option<Message> {
@@ -203,11 +208,14 @@ fn create_user_validation(data: &CreateUserPayload) -> bool {
 
     //check if the email matches the regex
     let email_format_valid = email_format.is_match(&data.email);
+
+    //role valid
+    let role_valid = role_validation(&data.role);
     //check if email and username is unique
     let email_unique = attribute_unique_validation(&data.email, UniqueAttribue::Email); 
     let username_unique = attribute_unique_validation(&data.username, UniqueAttribue::Username);
 
-    return email_format_valid && email_unique && username_unique;
+    return email_format_valid && role_valid && email_unique && username_unique;
 }
 
 // helper method to perform insert, insert the new user data
