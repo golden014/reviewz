@@ -51,11 +51,29 @@ impl Storable for User {
     }
 }
 
+// a trait that must be implemented for a struct that is stored in a stable struct - Product
+impl Storable for ProductReviewz {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
 // A trait indicating that a `Storable` element is bounded in size - User
 impl BoundedStorable for User {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
+
+// A trait indicating that a `Storable` element is bounded in size - Product
+impl BoundedStorable for ProductReviewz {
+    const MAX_SIZE: u32 = 1024;
+    const IS_FIXED_SIZE: bool = false;
+}
+
 //thread-local variables that will hold our canister's state. Thread-local variables are variables that are local to the current thread (sequence of instructions). They are useful when you need to share data between multiple threads.
 thread_local! {
     //This thread-local variable holds our canister's virtual memory, enabling us to access the memory manager from any part of our code.
@@ -89,10 +107,10 @@ thread_local! {
     ));
 
     //lanjut after declaring the structs
-    // static PRODUCT_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
-    //     RefCell::new(StableBTreeMap::init(
-    //         MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
-    // ));
+    static PRODUCT_STORAGE: RefCell<StableBTreeMap<u64, ProductReviewz, Memory>> =
+        RefCell::new(StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(4)))
+    ));
 
     // static REVIEW_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
     //     RefCell::new(StableBTreeMap::init(
@@ -198,6 +216,15 @@ fn view_all_user() -> Option<Vec<User>> {
     })
 }
 
+#[ic_cdk::query]
+fn view_all_product() -> Option<Vec<ProductReviewz>> {
+    PRODUCT_STORAGE.with(|s| {
+        //iterating through the PRODUCT_STORAGE's key-value pair, take all the value (user-data) and return as a vector
+        Some(s.borrow().iter().map(|(_product_id, product_data)| (product_data.clone())).collect())
+    })
+}
+
+
 #[ic_cdk::update]
 fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
     let user_data_valid = create_user_validation(&data);
@@ -219,8 +246,14 @@ fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
         role: data.role,
         joined_at: time(),
     };
-    do_insert_user(&new_user);
-    return Result::Ok(Some(new_user)) 
+
+    let insert_success = do_insert_user(&new_user);
+
+    match insert_success {
+        true => return Result::Ok(Some(new_user)),
+        false => return Result::Err(Error::NotFound { msg: "error while inserting new user".to_string() })
+    }
+
 }
 
 
@@ -232,7 +265,6 @@ fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error>
     if add_product_data_valid == false {
         return Result::Err(Error::InvalidPayloadData{ msg: "Invalid data, user must be valid and must be a store owner, and link must be in a valid format".to_string() })
     } 
-
     
     let id = PRODUCT_ID_COUNTER
         .with(|counter| {
@@ -240,14 +272,16 @@ fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error>
             counter.borrow_mut().set(current_value + 1)
         })
         .expect("cannot increment id counter");
+
     let new_product = ProductReviewz {
         product_id: id,
         product_name: data.product_name,
-        product_description: data.product_description,
+        product_description: id.to_string(),
         product_link: data.product_link,
         owner_user_id: data.owner_user_id,
     };
-
+    print!("{}", &new_product.product_id);
+    do_insert_product(&new_product);
     return Result::Ok(Some(new_product)) 
 }
 
@@ -289,12 +323,57 @@ fn add_product_validation(data: &AddProductPayload) -> bool {
 }
 
 // helper method to perform insert, insert the new user data
-fn do_insert_user(data: &User) {
-    USER_STORAGE.with(|service| service.borrow_mut().insert(data.user_id, data.clone()));
+fn do_insert_user(data: &User) -> bool {
+    let a = USER_STORAGE.with(|service| service.borrow_mut().insert(data.user_id, data.clone()));
+    match  a {
+        Some(_user) => return false,
+        None => return true,
+    }
 }
 
+fn do_insert_product(data: &ProductReviewz) {
+    PRODUCT_STORAGE.with(|service| service.borrow_mut().insert(data.product_id, data.clone()));
+}
+
+//get user by the specified id
 fn _get_user_by_id(user_id: &u64) -> Option<User> {
     USER_STORAGE.with(|s| s.borrow().get(user_id))
+}
+
+//temp
+#[ic_cdk::update]
+fn clear_all_user() {
+
+    USER_ID_COUNTER
+        .with(|counter| {
+            let count = *counter.borrow().get();
+        
+        //iterate through all the items and remove them
+        for i in 0..count{
+            USER_STORAGE.with(|service| service.borrow_mut().remove(&i));
+        }
+    });
+
+    
+}
+
+//temp
+#[ic_cdk::update]
+fn clear_all_product() {
+
+    PRODUCT_ID_COUNTER
+        .with(|counter| {
+            let count = *counter.borrow().get();
+        
+        //iterate through all the items and remove them
+        for i in 0..count{
+            PRODUCT_STORAGE.with(|service| service.borrow_mut().remove(&i));
+        }
+    });
+
+    MEMORY_MANAGER.with(|m| {
+        *m.borrow_mut() = MemoryManager::init(DefaultMemoryImpl::default());
+    });
 }
 
 // #[ic_cdk::update]

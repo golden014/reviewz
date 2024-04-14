@@ -1,4 +1,4 @@
 [workspace]
 members = [
-    "src/reviewz_rust_backend",
+    "src/reviewz",
 ]

@@ -27,6 +27,9 @@ type User = record {
 };
 service : {
   add_product : (AddProductPayload) -> (Result);
+  clear_all_product : () -> ();
+  clear_all_user : () -> ();
   create_user : (CreateUserPayload) -> (Result_1);
+  view_all_product : () -> (opt vec ProductReviewz) query;
   view_all_user : () -> (opt vec User) query;
 }

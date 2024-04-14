@@ -1,10 +1,10 @@
 {
   "version": 1,
   "canisters": {
-    "reviewz_rust_backend": {
+    "reviewz": {
       "type": "rust",
-      "package": "reviewz_rust_backend",
-      "candid": "src/reviewz_rust_backend/reviewz_rust_backend.did"
+      "package": "reviewz",
+      "candid": "src/reviewz/reviewz.did"
     }
   },
   "output_env_file": ".env"
