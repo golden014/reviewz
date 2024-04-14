@@ -370,10 +370,6 @@ fn clear_all_product() {
             PRODUCT_STORAGE.with(|service| service.borrow_mut().remove(&i));
         }
     });
-
-    MEMORY_MANAGER.with(|m| {
-        *m.borrow_mut() = MemoryManager::init(DefaultMemoryImpl::default());
-    });
 }
 
 // #[ic_cdk::update]
