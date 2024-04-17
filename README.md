@@ -1,4 +1,26 @@
-# icp_rust_message_board_contract
+# REVIEWZ
+Reviewz is a platform where each user can review their favorite product. If they are a store owner, they can add their own product into the system and also manage their product.
+
+Features:
+
+1. create_user(email, username, role)
+to create a new user and insert it into the system, email must be in a valid email format, email and username must be unique, and role must be either customer or store_owner
+
+2. add_product(product_name, product_description, product_link, added_by)
+validate that the product must be added by user with store_owner role, product_link must be a valid link format
+
+
+3. delete_product(product_id, user_id)
+to delete a product from the system, product_id and user_id must be valid, validate the user that wants to delete it is the one that inserted it. Also delete all the reviews for the specified product.
+
+4. update_product(product_id, product_name, product_description, user_id)
+to update a products name/description/link, validate the user must be the one that inserted the product, product_id and user_id must be valid.
+
+5. view_all_products()
+retrieve all products
+
+6. add_product_review(product_id, user_id, rating, review_description)
+product_id and user_id must be valid, user’s role must be a customer, rating cant exceed 5 (1-5 inclusive)
 
 ### Requirements
 * rustc 1.64 or higher
@@ -16,7 +38,7 @@ $ cargo install candid-extractor
 ```
 * install `dfx`
 ```bash
-$ DFX_VERSION=0.15.0 sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
+$ DFX_VERSION=0.19.0 sh -ci "$(curl -fsSL https://sdk.dfinity.org/install.sh)"
 $ echo 'export PATH="$PATH:$HOME/bin"' >> "$HOME/.bashrc"
 $ source ~/.bashrc
 $ dfx start --background
@@ -44,23 +66,6 @@ ic-stable-structures = { git = "https://github.com/lwshang/stable-structures.git
 
 ## did autogenerate
 
-Add this script to the root directory of the project:
-```
-https://github.com/buildwithjuno/juno/blob/main/scripts/did.sh
-```
-
-Update line 16 with the name of your canister:
-```
-https://github.com/buildwithjuno/juno/blob/main/scripts/did.sh#L16
-```
-
-After this run this script to generate Candid.
-Important note!
-
-You should run this script each time you modify/add/remove exported functions of the canister.
-Otherwise, you'll have to modify the candid file manually.
-
-Also, you can add package json with this content:
 ```
 {
     "scripts": {
@@ -70,11 +75,11 @@ Also, you can add package json with this content:
 }
 ```
 
-and use commands `npm run generate` to generate candid or `npm run gen-deploy` to generate candid and to deploy a canister.
+use commands `npm run generate` to generate candid or `npm run gen-deploy` to generate candid and to deploy a canister.
 
 ## Running the project locally
 
-If you want to test your project locally, you can use the following commands:
+If you want to run this project locally, you can use the following commands:
 
 ```bash
 # Starts the replica, running in the background

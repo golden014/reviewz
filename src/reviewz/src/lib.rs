@@ -305,7 +305,6 @@ fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error>
 }
 
 #[ic_cdk::update]
-
 fn add_review(data: AddReviewPayload) -> Result<Option<Review>, Error> {
     let review_data_valid = review_product_validation(&data);
 
