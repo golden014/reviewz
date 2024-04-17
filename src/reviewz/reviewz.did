@@ -4,7 +4,14 @@ type AddProductPayload = record {
   owner_user_id : nat64;
   product_description : text;
 };
+type AddReviewPayload = record {
+  product_id : nat64;
+  user_id : nat64;
+  rating : nat64;
+  review_description : text;
+};
 type CreateUserPayload = record { username : text; role : text; email : text };
+type DeleteProductPayload = record { product_id : nat64; user_id : nat64 };
 type Error = variant {
   NotFound : record { msg : text };
   InvalidPayloadData : record { msg : text };
@@ -17,7 +24,22 @@ type ProductReviewz = record {
   product_description : text;
 };
 type Result = variant { Ok : opt ProductReviewz; Err : Error };
-type Result_1 = variant { Ok : opt User; Err : Error };
+type Result_1 = variant { Ok : opt Review; Err : Error };
+type Result_2 = variant { Ok : opt User; Err : Error };
+type Review = record {
+  review_id : nat64;
+  product_id : nat64;
+  user_id : nat64;
+  rating : nat64;
+  review_description : text;
+};
+type UpdateProductPayload = record {
+  product_id : nat64;
+  user_id : nat64;
+  product_link : text;
+  product_name : text;
+  product_description : text;
+};
 type User = record {
   username : text;
   role : text;
@@ -27,9 +49,13 @@ type User = record {
 };
 service : {
   add_product : (AddProductPayload) -> (Result);
+  add_review : (AddReviewPayload) -> (Result_1);
   clear_all_product : () -> ();
   clear_all_user : () -> ();
-  create_user : (CreateUserPayload) -> (Result_1);
+  create_user : (CreateUserPayload) -> (Result_2);
+  delete_product : (DeleteProductPayload) -> (Result);
+  update_product : (UpdateProductPayload) -> (Result);
   view_all_product : () -> (opt vec ProductReviewz) query;
+  view_all_review : () -> (opt vec Review) query;
   view_all_user : () -> (opt vec User) query;
 }

@@ -1,21 +1,15 @@
 #[macro_use]
 extern crate serde;
-use candid::{Decode, Encode}; //serialization format used in ICP
-use ic_cdk::api::time; //core crate for rust Canister Development kit, provide core method supaya program rust bisa interact
-//dengan Internet Computer Blockchain system API
-use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory}; //provide data structures
+use candid::{Decode, Encode};
+use ic_cdk::api::time; 
+use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
 use regex::Regex;
 use std::{borrow::Cow, cell::RefCell};
 
-// #[ic_cdk::query]
-// fn greet(name: String) -> String {
-//     format!("Hello, {}!", name)
-// }
 
 type Memory = VirtualMemory<DefaultMemoryImpl>;
-type IdCell = Cell<u64, Memory>; //cell responsible for holding the current ID of the message. 
-//We'll utilize this to generate unique IDs for each message.
+type IdCell = Cell<u64, Memory>;
 
 
 //This struct will represent the messages in our message board application, and it 
@@ -30,7 +24,7 @@ struct User {
     role: String,
     joined_at: u64
 }
-
+//the product
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct ProductReviewz {
     product_id: u64,
@@ -39,8 +33,17 @@ struct ProductReviewz {
     product_link: String,
     owner_user_id: u64
 }
+//review
+#[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
+struct Review {
+    review_id: u64,
+    product_id: u64,
+    user_id: u64,
+    rating: u64,
+    review_description: String,
+}
 
-// a trait that must be implemented for a struct that is stored in a stable struct - User
+// a trait that must be implemented for a struct that is stored in a stable struct
 impl Storable for User {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
@@ -50,8 +53,6 @@ impl Storable for User {
         Decode!(bytes.as_ref(), Self).unwrap()
     }
 }
-
-// a trait that must be implemented for a struct that is stored in a stable struct - Product
 impl Storable for ProductReviewz {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
@@ -61,15 +62,26 @@ impl Storable for ProductReviewz {
         Decode!(bytes.as_ref(), Self).unwrap()
     }
 }
+impl Storable for Review {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
 
-// A trait indicating that a `Storable` element is bounded in size - User
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+}
+
+// A trait indicating that a `Storable` element is bounded in size
 impl BoundedStorable for User {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
-
-// A trait indicating that a `Storable` element is bounded in size - Product
 impl BoundedStorable for ProductReviewz {
+    const MAX_SIZE: u32 = 1024;
+    const IS_FIXED_SIZE: bool = false;
+}
+impl BoundedStorable for Review {
     const MAX_SIZE: u32 = 1024;
     const IS_FIXED_SIZE: bool = false;
 }
@@ -112,10 +124,10 @@ thread_local! {
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(4)))
     ));
 
-    // static REVIEW_STORAGE: RefCell<StableBTreeMap<u64, User, Memory>> =
-    //     RefCell::new(StableBTreeMap::init(
-    //         MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(3)))
-    // ));
+    static REVIEW_STORAGE: RefCell<StableBTreeMap<u64, Review, Memory>> =
+        RefCell::new(StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(5)))
+    ));
     
 }
 
@@ -126,13 +138,34 @@ struct CreateUserPayload {
     username: String,
     role: String
 }
-
 #[derive(candid::CandidType, Serialize, Deserialize, Default)]
 struct AddProductPayload {
     product_name: String,
     product_description: String,
     product_link: String,
     owner_user_id: u64
+}
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct AddReviewPayload {
+    product_id: u64,
+    user_id: u64,
+    rating: u64,
+    review_description: String
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct UpdateProductPayload {
+    product_id: u64,
+    user_id: u64,
+    product_name: String,
+    product_description: String,
+    product_link: String
+}
+
+#[derive(candid::CandidType, Serialize, Deserialize, Default)]
+struct DeleteProductPayload {
+    product_id: u64,
+    user_id: u64
 }
 
 //enum for errors
@@ -141,22 +174,7 @@ enum Error {
     NotFound { msg: String },
     InvalidPayloadData {msg: String}
 }
-
-// //retrieves a message from our canister's storage.
-// #[ic_cdk::query]
-// fn get_message(id: u64) -> Result<Message, Error> {
-//     match _get_message(&id) {
-//         Some(message) => Ok(message),
-//         None => Err(Error::NotFound {
-//             msg: format!("a message with id={} not found", id),
-//         }),
-//     }
-// }
-
-// //helper utk dipake di get_message
-// fn _get_message(id: &u64) -> Option<Message> {
-//     STORAGE.with(|s| s.borrow().get(id))
-// }
+//enum for unique attribute
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum UniqueAttribue{
     Email,
@@ -187,27 +205,15 @@ fn is_store_owner_validation(data: &String) -> bool {
     data == "StoreOwner"
 }
 
-//takes a message of type MessagePayload as input and returns an Option<Message>. It generates a unique id for the message, creates a new Message struct, and adds it to the canister's storage
-// #[ic_cdk::update]
-// fn add_message(message: MessagePayload) -> Option<Message> {
-//     let id = ID_COUNTER
-//         .with(|counter| {
-//             let current_value = *counter.borrow().get();
-//             counter.borrow_mut().set(current_value + 1)
-//         })
-//         .expect("cannot increment id counter");
-//     let message = Message {
-//         id,
-//         title: message.title,
-//         body: message.body,
-//         attachment_url: message.attachment_url,
-//         created_at: time(),
-//         updated_at: None,
-//     };
-//     do_insert(&message);
-//     Some(message)
-// }
+fn is_customer_validation(data: &String) -> bool {
+    data == "Customer"
+}
+//rating must be between 1 and 5 (inclusive)
+fn _rating_validation(data: &u64) -> bool {
+    *data >= 1 && *data <= 5
+}
 
+//view all user
 #[ic_cdk::query]
 fn view_all_user() -> Option<Vec<User>> {
     USER_STORAGE.with(|s| {
@@ -216,6 +222,7 @@ fn view_all_user() -> Option<Vec<User>> {
     })
 }
 
+//view all product
 #[ic_cdk::query]
 fn view_all_product() -> Option<Vec<ProductReviewz>> {
     PRODUCT_STORAGE.with(|s| {
@@ -224,15 +231,26 @@ fn view_all_product() -> Option<Vec<ProductReviewz>> {
     })
 }
 
+//view all review
+#[ic_cdk::query]
+fn view_all_review() -> Option<Vec<Review>> {
+    REVIEW_STORAGE.with(|s| {
+        //iterating through the REVIEW_STORAGE's key-value pair, take all the value (user-data) and return as a vector
+        Some(s.borrow().iter().map(|(_review_id, review_data)| (review_data.clone())).collect())
+    })
+}
 
+//create new user
 #[ic_cdk::update]
 fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
+    //validate new user's data
     let user_data_valid = create_user_validation(&data);
 
     if user_data_valid == false {
         return Result::Err(Error::InvalidPayloadData { msg: "Invalid data, make sure the email is in valid format, email and username must be unique".to_string() })
     }
 
+    //get the new id
     let id = USER_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -247,6 +265,7 @@ fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
         joined_at: time(),
     };
 
+    //insert new User
     let insert_success = do_insert_user(&new_user);
 
     match insert_success {
@@ -257,7 +276,7 @@ fn create_user(data: CreateUserPayload) -> Result<Option<User>, Error> {
 }
 
 
-
+//add new product
 #[ic_cdk::update]
 fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error> {
     let add_product_data_valid = add_product_validation(&data);
@@ -265,7 +284,7 @@ fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error>
     if add_product_data_valid == false {
         return Result::Err(Error::InvalidPayloadData{ msg: "Invalid data, user must be valid and must be a store owner, and link must be in a valid format".to_string() })
     } 
-    
+    //get the new id
     let id = PRODUCT_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -276,7 +295,7 @@ fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error>
     let new_product = ProductReviewz {
         product_id: id,
         product_name: data.product_name,
-        product_description: id.to_string(),
+        product_description: data.product_description,
         product_link: data.product_link,
         owner_user_id: data.owner_user_id,
     };
@@ -285,7 +304,96 @@ fn add_product(data: AddProductPayload) -> Result<Option<ProductReviewz>, Error>
     return Result::Ok(Some(new_product)) 
 }
 
+#[ic_cdk::update]
 
+fn add_review(data: AddReviewPayload) -> Result<Option<Review>, Error> {
+    let review_data_valid = review_product_validation(&data);
+
+    if review_data_valid == false {
+        return Result::Err(Error::InvalidPayloadData{ msg: "Invalid data, user and product id must be valid, user must be a customer, rating must be in range 1-5 inclusive".to_string() })
+    };
+
+    //get the new id
+    let id = REVIEW_ID_COUNTER
+        .with(|counter| {
+            let current_value = *counter.borrow().get();
+            counter.borrow_mut().set(current_value + 1)
+        })
+        .expect("cannot increment id counter");
+
+    let new_review = Review {
+        review_id: id,
+        product_id: data.product_id,
+        user_id: data.user_id,
+        rating: data.rating,
+        review_description: data.review_description
+    };
+
+    do_insert_review(&new_review);
+    return Result::Ok(Some(new_review))
+
+}
+
+//update product
+#[ic_cdk::update]
+fn update_product(data: UpdateProductPayload) -> Result<Option<ProductReviewz>, Error> {
+    let update_product_data_valid = update_product_validation(&data);
+
+    if update_product_data_valid == false {
+        return Result::Err(Error::InvalidPayloadData{ msg: "Invalid data, user and product id must be valid, user must be the owner of the prodcut".to_string() })
+    }
+
+    match PRODUCT_STORAGE.with(|service| service.borrow().get(&data.product_id)) {
+        Some(mut product) => {
+            product.product_name = data.product_name;
+            product.product_description = data.product_description;
+            product.product_link = data.product_link;
+            do_insert_product(&product);
+            Ok(Some(product))
+        }
+        None => Err(Error::NotFound {
+            msg: format!(
+                "couldn't update a product with id={}. message not found",
+                &data.product_id
+            ),
+        }),
+    }
+}
+
+//delete product
+#[ic_cdk::update]
+fn delete_product(data: DeleteProductPayload) -> Result<Option<ProductReviewz>, Error> {
+    //check payload validation
+    let delete_payload_valid = delete_product_validation(&data);
+
+
+    if delete_payload_valid == false {
+        return Result::Err(Error::InvalidPayloadData{ msg: "Invalid data, user and product id must be valid, user must be the owner of the prodcut".to_string() })
+    }
+
+    //get all the reviews of the product
+    let reviews = get_reviews_by_product_id(&data.product_id);
+
+    //iterate through all the reviews and remove them
+    REVIEW_STORAGE.with(|service| {
+        for review in reviews {
+            service.borrow_mut().remove(&review.review_id);
+        }
+    });
+
+    match PRODUCT_STORAGE.with(|service| service.borrow_mut().remove(&data.product_id)) {
+        Some(message) => Ok(Some(message)),
+        None => Err(Error::NotFound {
+            msg: format!(
+                "couldn't delete a message with id={}. message not found.",
+                &data.product_id
+            ),
+        }),
+    }
+
+}
+
+//validation when creating a new user
 fn create_user_validation(data: &CreateUserPayload) -> bool {
     //email format validation using regex
     let email_format = Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
@@ -322,6 +430,102 @@ fn add_product_validation(data: &AddProductPayload) -> bool {
     
 }
 
+fn review_product_validation(data: &AddReviewPayload) -> bool {
+    let product = _get_product_by_id(&data.product_id);
+    let user = _get_user_by_id(&data.user_id);
+
+    //check if product exist
+    let product_valid = match product {
+        Some(_product_reviewz) => true,
+        None => false
+    };
+
+    //check if user exist and the role is customer
+    let user_valid = match user {
+        Some(ref _user) => is_customer_validation(&user.unwrap().role),
+        None => false
+    };
+
+    let rating_valid = _rating_validation(&data.rating);
+
+    product_valid && user_valid && rating_valid
+}
+
+fn update_product_validation(data: &UpdateProductPayload) -> bool {
+    let product = _get_product_by_id(&data.product_id);
+    let user = _get_user_by_id(&data.user_id);
+
+    let mut user_id_payload: Option<&u64> = None;
+    let mut user_id_product: Option<&u64> = None;
+
+    //check if user exist
+    match user {
+        Some(ref _user) => user_id_payload = Some(&data.user_id),
+        None => {}
+    };
+
+    //check if product exist
+    match product {
+        Some(_product_reviewz) => {
+            user_id_product = Some(&_product_reviewz.owner_user_id);
+
+            //if the user specified in the payload is the owner of the product return true
+            if user_id_payload.is_some() && user_id_product.is_some() {
+                return user_id_payload == user_id_product
+            } else {
+                return false;
+            }
+        },
+        None => {return false}
+    }; 
+}
+
+//delete product validation, this can be improved because it does the same thing as the update product validation, just different payload
+fn delete_product_validation(data: &DeleteProductPayload) -> bool {
+    let product = _get_product_by_id(&data.product_id);
+    let user = _get_user_by_id(&data.user_id);
+
+    let mut user_id_payload: Option<&u64> = None;
+    let mut user_id_product: Option<&u64> = None;
+
+     //check if user exist
+     match user {
+        Some(ref _user) => user_id_payload = Some(&data.user_id),
+        None => {}
+    };
+
+    match product {
+        Some(_product_reviewz) => {
+            user_id_product = Some(&_product_reviewz.owner_user_id);
+
+            //if the user specified in the payload is the owner of the product return true
+            if user_id_payload.is_some() && user_id_product.is_some() {
+                return user_id_payload == user_id_product
+            } else {
+                return false;
+            }
+        },
+        None => {return false}
+    }; 
+}
+
+//get all the reviews for a specifed product
+fn get_reviews_by_product_id(id: &u64) -> Vec<Review> {
+    REVIEW_STORAGE.with(|service| {
+        service
+        .borrow()
+        .iter()
+        //take every review with the same product id as specified
+        .filter_map(|(_, review)| {
+            if review.product_id == *id {
+                Some(review.clone())
+            } else {
+                None
+            }
+        }).collect()
+    })  
+}
+
 // helper method to perform insert, insert the new user data
 fn do_insert_user(data: &User) -> bool {
     let a = USER_STORAGE.with(|service| service.borrow_mut().insert(data.user_id, data.clone()));
@@ -335,15 +539,23 @@ fn do_insert_product(data: &ProductReviewz) {
     PRODUCT_STORAGE.with(|service| service.borrow_mut().insert(data.product_id, data.clone()));
 }
 
+fn do_insert_review(data: &Review) {
+    REVIEW_STORAGE.with(|service| service.borrow_mut().insert(data.review_id, data.clone()));
+}
+
 //get user by the specified id
 fn _get_user_by_id(user_id: &u64) -> Option<User> {
     USER_STORAGE.with(|s| s.borrow().get(user_id))
 }
 
-//temp
+//get product by the specified id
+fn _get_product_by_id(product_id: &u64) -> Option<ProductReviewz> {
+    PRODUCT_STORAGE.with(|s| s.borrow().get(product_id))
+}
+
+//clear all user - for debug purposes
 #[ic_cdk::update]
 fn clear_all_user() {
-
     USER_ID_COUNTER
         .with(|counter| {
             let count = *counter.borrow().get();
@@ -353,14 +565,11 @@ fn clear_all_user() {
             USER_STORAGE.with(|service| service.borrow_mut().remove(&i));
         }
     });
-
-    
 }
 
-//temp
+//clear all user - for debug purposes
 #[ic_cdk::update]
 fn clear_all_product() {
-
     PRODUCT_ID_COUNTER
         .with(|counter| {
             let count = *counter.borrow().get();
@@ -371,39 +580,6 @@ fn clear_all_product() {
         }
     });
 }
-
-// #[ic_cdk::update]
-// fn update_message(id: u64, payload: MessagePayload) -> Result<Message, Error> {
-//     match STORAGE.with(|service| service.borrow().get(&id)) {
-//         Some(mut message) => {
-//             message.attachment_url = payload.attachment_url;
-//             message.body = payload.body;
-//             message.title = payload.title;
-//             message.updated_at = Some(time());
-//             do_insert(&message);
-//             Ok(message)
-//         }
-//         None => Err(Error::NotFound {
-//             msg: format!(
-//                 "couldn't update a message with id={}. message not found",
-//                 id
-//             ),
-//         }),
-//     }
-// }
-
-// #[ic_cdk::update]
-// fn delete_message(id: u64) -> Result<Message, Error> {
-//     match STORAGE.with(|service| service.borrow_mut().remove(&id)) {
-//         Some(message) => Ok(message),
-//         None => Err(Error::NotFound {
-//             msg: format!(
-//                 "couldn't delete a message with id={}. message not found.",
-//                 id
-//             ),
-//         }),
-//     }
-// }
 
 // need this to generate candid
 ic_cdk::export_candid!();
